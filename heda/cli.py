@@ -1,10 +1,15 @@
+import os
+import subprocess
+import requests
 import typer
 from pathlib import Path
 from heda.check import ClaimCheckError, check_claims
+from heda.publish import PublishError, checkout_version, list_versions, publish_experiment
 from heda.validate import load_experiment_yaml, validate_experiment, ExperimentValidationError
 from heda.run import run_experiment, ExperimentRunError
 from heda.finalize import finalize_experiment, ExperimentFinalizeError
 from heda.verify import VerificationError, verify_experiment
+
 
 app = typer.Typer(help="HEDA CLI")
 
@@ -65,11 +70,35 @@ outputs_dir.mkdir(exist_ok=True)
 with open(outputs_dir / "metrics.json", "w") as f:
     json.dump({"accuracy": accuracy}, f)
 """
+
     # Write files
     (base_path / "experiment.yaml").write_text(experiment_yaml)
     (base_path / "src" / "main.py").write_text(main_py)
+    
+     # Initialize local Git repo
+    subprocess.run(["git", "init"], cwd=base_path, check=True)
 
-    typer.echo(f"Initialized new experiment in '{name}'")
+    # Initialize local Git repo
+    subprocess.run(["git", "init"], cwd=base_path, check=True)
+    subprocess.run(["git", "add", "."], cwd=base_path, check=True)
+    subprocess.run(["git", "commit", "-m", "Initial experiment structure"], cwd=base_path, check=True)
+    subprocess.run(["git", "branch", "-M", "main"], cwd=base_path, check=True)
+
+    # Call backend to create remote GitOps repo with workflow
+    backend_url = "http://localhost:8000/init"
+    token = "abcd"
+    response = requests.post(
+        backend_url,
+        headers={"x-auth-token": token},
+        json={"username": os.environ.get("USER", "anonymous"), "experiment_name": name}
+    )
+    if response.status_code != 200:
+        typer.echo(f"Failed to create remote repo: {response.text}", err=True)
+        raise typer.Exit(code=1)
+
+    remote_url = response.json()["repo_url"]
+    subprocess.run(["git", "remote", "add", "origin", remote_url], cwd=base_path, check=True)
+    typer.echo(f"Initialized experiment '{name}'")
     
 @app.command()
 def validate():
@@ -135,3 +164,36 @@ def verify():
         raise typer.Exit(code=1)
 
     typer.echo("Verification succeeded")
+
+@app.command("publish")
+def repro_publish(push: bool = typer.Option(False, help="Push to GitHub after publishing")):
+    """
+    Publish the current experiment:
+    - Validate
+    - Generate unique ID
+    - Commit + tag in Git
+    - Update registry
+    - Optionally push to GitHub
+    """
+    try:
+        exp_id = publish_experiment(push=push)
+        typer.secho(f"Experiment published successfully! ID: {exp_id}", fg=typer.colors.GREEN)
+    except PublishError as e:
+        typer.secho(f"[❌] Publish failed: {e}", fg=typer.colors.RED)
+
+@app.command("list")
+def repro_list():
+    """
+    List all published experiment versions.
+    """
+    list_versions()
+
+@app.command("checkout")
+def repro_checkout(version_id: str):
+    """
+    Switch to a specific experiment version.
+    """
+    try:
+        checkout_version(version_id)
+    except PublishError as e:
+        typer.secho(f"[❌] Checkout failed: {e}", fg=typer.colors.RED)

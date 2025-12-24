@@ -2,3 +2,4 @@ test_files/
 __pycache__/
 heda.egg-info/
 .vscode/
+.env
