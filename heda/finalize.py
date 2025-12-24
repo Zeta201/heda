@@ -45,7 +45,7 @@ jobs:
       - name: Install heda CLI
         run: |
           pip install --upgrade pip
-          pip install heda
+          pip install git+https://github.com/Zeta201/heda.git
 
       - name: Validate experiment spec
         run: |
