@@ -1,6 +1,0 @@
-Metadata-Version: 2.4
-Name: heda
-Version: 0.1.0
-Summary: Executable scientific reproducibility engine
-Requires-Python: >=3.11
-Requires-Dist: typer>=0.12
