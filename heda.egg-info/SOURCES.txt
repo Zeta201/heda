@@ -1,0 +1,10 @@
+README.md
+pyproject.toml
+heda/__init__.py
+heda/cli.py
+heda.egg-info/PKG-INFO
+heda.egg-info/SOURCES.txt
+heda.egg-info/dependency_links.txt
+heda.egg-info/entry_points.txt
+heda.egg-info/requires.txt
+heda.egg-info/top_level.txt
