@@ -1,8 +1,10 @@
 import typer
 from pathlib import Path
+from heda.check import ClaimCheckError, check_claims
 from heda.validate import load_experiment_yaml, validate_experiment, ExperimentValidationError
 from heda.run import run_experiment, ExperimentRunError
 from heda.finalize import finalize_experiment, ExperimentFinalizeError
+from heda.verify import VerificationError, verify_experiment
 
 app = typer.Typer(help="HEDA CLI")
 
@@ -107,3 +109,29 @@ def run():
         raise typer.Exit(code=1)
 
     typer.echo("Experiment ran successfully")
+
+@app.command()
+def check():
+    """
+    Check experiment outputs against declared claims.
+    """
+    try:
+        check_claims()
+    except ClaimCheckError as e:
+        typer.echo(f"Claim check failed:\n{e}", err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo("All claims satisfied")
+
+@app.command()
+def verify():
+    """
+    Run experiment, evaluate claims, and produce verification.json.
+    """
+    try:
+        verify_experiment()
+    except VerificationError as e:
+        typer.echo(f"Verification failed: {e}", err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo("Verification succeeded")

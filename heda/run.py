@@ -1,12 +1,7 @@
 import subprocess
 from pathlib import Path
 
-from heda.validate import (
-    load_experiment_yaml,
-    validate_experiment,
-    ExperimentValidationError,
-)
-
+from heda.check import ClaimCheckError, check_claims
 
 class ExperimentRunError(Exception):
     pass
@@ -44,3 +39,11 @@ def run_experiment() -> None:
 
     if subprocess.run(run).returncode != 0:
         raise ExperimentRunError("Experiment execution failed")
+    
+    # After successful docker run
+    try:
+        check_claims()
+    except ClaimCheckError as e:
+        raise ExperimentRunError(
+            f"Experiment ran, but claims FAILED:\n{e}"
+        )

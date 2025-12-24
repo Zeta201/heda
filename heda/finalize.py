@@ -1,7 +1,7 @@
 import hashlib
 from pathlib import Path
-
-from heda.validate import load_experiment_yaml, validate_experiment, ExperimentValidationError
+import json
+from heda.validate import load_experiment_yaml, validate_experiment
 
 class ExperimentFinalizeError(Exception):
     pass
@@ -35,7 +35,8 @@ def finalize_experiment():
     validate_experiment(data)
 
     entrypoint = data["procedure"]["entrypoint"]
-    entrypoint_json = str(entrypoint.split())
+    entrypoint_json = json.dumps(entrypoint.split())
+
 
     dockerfile_content = DOCKERFILE_TEMPLATE.format(
         entrypoint=entrypoint_json
