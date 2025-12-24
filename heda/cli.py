@@ -1,5 +1,6 @@
 import typer
 from pathlib import Path
+from heda.validate import load_experiment_yaml, validate_experiment, ExperimentValidationError
 
 app = typer.Typer(help="HEDA CLI")
 
@@ -71,3 +72,18 @@ with open(outputs_dir / "metrics.json", "w") as f:
 
     typer.echo(f"Initialized new experiment in '{name}'")
     
+@app.command()
+def validate():
+    """
+    Validate experiment.yaml against the schema.
+    """
+    experiment_path = Path("experiment.yaml")
+
+    try:
+        data = load_experiment_yaml(experiment_path)
+        validate_experiment(data)
+    except ExperimentValidationError as e:
+        typer.echo(f"Validation failed: {e}", err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo("experiment.yaml is valid")
