@@ -1,6 +1,8 @@
 import typer
 from pathlib import Path
 from heda.validate import load_experiment_yaml, validate_experiment, ExperimentValidationError
+from heda.run import run_experiment, ExperimentRunError
+from heda.finalize import finalize_experiment, ExperimentFinalizeError
 
 app = typer.Typer(help="HEDA CLI")
 
@@ -29,30 +31,26 @@ def init(name: str):
         raise typer.Exit(code=1)
     
     # Create directory structure
-    (base_path / "data").mkdir(parents=True)
+    (base_path / "src").mkdir(parents=True)
+    (base_path / "data").mkdir()
     (base_path / "outputs").mkdir()
+    (base_path / ".heda").mkdir()
     
+    (base_path / "requirements.txt").write_text("# Add dependencies here\n")
+
     # experiment.yaml
     experiment_yaml = """\
 name: example_experiment
 procedure:
-  entrypoint: python run.py
+  entrypoint: python src/main.py
 claims:
   - metric: accuracy
     operator: ">="
     value: 0.8
 """
-    # Dockerfile
-    dockerfile = """\
-FROM python:3.11
-WORKDIR /exp
-COPY . .
-RUN pip install numpy
-CMD ["python", "run.py"]
-"""
 
     # run.py
-    run_py = """\
+    main_py = """\
 import json
 from pathlib import Path
 
@@ -67,8 +65,7 @@ with open(outputs_dir / "metrics.json", "w") as f:
 """
     # Write files
     (base_path / "experiment.yaml").write_text(experiment_yaml)
-    (base_path / "Dockerfile").write_text(dockerfile)
-    (base_path / "run.py").write_text(run_py)
+    (base_path / "src" / "main.py").write_text(main_py)
 
     typer.echo(f"Initialized new experiment in '{name}'")
     
@@ -87,3 +84,26 @@ def validate():
         raise typer.Exit(code=1)
 
     typer.echo("experiment.yaml is valid")
+
+@app.command()
+def finalize():
+    try:
+        finalize_experiment()
+    except ExperimentFinalizeError as e:
+        typer.echo(f"Finalize failed: {e}", err=True)
+        raise typer.Exit(1)
+
+    typer.echo("Experiment finalized (Dockerfile locked)")
+    
+@app.command()
+def run():
+    """
+    Run the experiment inside Docker.
+    """
+    try:
+        run_experiment()
+    except ExperimentRunError as e:
+        typer.echo(f"Run failed: {e}", err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo("Experiment ran successfully")
