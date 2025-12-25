@@ -76,9 +76,10 @@ def check_claims() -> None:
     print(table_str)
 
     # 6. Save table to outputs/claim_report.txt
-    report_dir = Path("outputs")
-    report_dir.mkdir(exist_ok=True)
+    report_dir = Path(".heda/reports")
+    report_dir.mkdir(parents=True, exist_ok=True)
     report_path = report_dir / "claim_report.txt"
+
     with open(report_path, "w") as f:
         f.write("Claim Evaluation Results:\n\n")
         f.write(table_str + "\n")
