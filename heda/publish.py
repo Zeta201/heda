@@ -7,6 +7,9 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from dotenv import load_dotenv
+
+from heda.utils.exp_utils import get_dockerfile_file_path, get_exp_path, get_requirement_file_path
+from heda.utils.httputils import RequestError, post_multipart
 load_dotenv()
 
 
@@ -25,9 +28,6 @@ class PublishError(Exception):
     pass
 
 
-# -----------------------------
-# Step context manager
-# -----------------------------
 from contextlib import contextmanager
 
 @contextmanager
@@ -47,9 +47,6 @@ def step(description: str):
             raise e
 
 
-# -----------------------------
-# Local registry utils
-# -----------------------------
 def load_registry() -> dict:
     if not REGISTRY_FILE.exists():
         return {"versions": []}
@@ -60,54 +57,36 @@ def save_registry(registry: dict):
     REGISTRY_FILE.write_text(json.dumps(registry, indent=2))
 
 
-# -----------------------------
-# Publish CLI
-# -----------------------------
 def publish_experiment(exp_name: str):
     username = get_username()
 
-    # -----------------------------
-    # Step 1: Validate experiment
-    # -----------------------------
     with step("Validating experiment.yaml"):
         experiment = load_experiment_yaml(Path("experiment.yaml"))
         validate_experiment(experiment)
 
-    # -----------------------------
-    # Step 2: Collect files
-    # -----------------------------
+
     with step("Collecting experiment files"):
         files = collect_publish_files()
 
-    # -----------------------------
-    # Step 3: Upload files to backend
-    # -----------------------------
+
     with step("Creating pull request for publishing"):
-        multipart_files = [
-            ("files", (str(f), f.read_bytes(), "application/octet-stream")) for f in files
-        ]
+        try:
+            payload = post_multipart(
+        endpoint="/publish",
+        files=files,
+        form_data={
+            "username": username,
+            "experiment_name": exp_name
+        },
+        timeout=120
+    )
+        except RequestError as e:
+            raise PublishError(f"Publishing failed: {e}")
 
-        response = requests.post(
-            f"{BACKEND_URL}/publish",
-            headers={"X-Auth-Token": BACKEND_AUTH_TOKEN},
-            files=multipart_files,
-            data={
-                "username": username,
-                "experiment_name": exp_name,
-            },
-            timeout=120,
-        )
-
-        if response.status_code != 200:
-            raise PublishError(response.text)
-
-        payload = response.json()
         experiment_id = payload["experiment_id"]
         pr_url = payload.get("pull_request_url")
 
-    # -----------------------------
-    # Step 4: Update local registry
-    # -----------------------------
+
     with step("Updating local registry"):
         registry = load_registry()
         registry["versions"].append(
@@ -127,7 +106,7 @@ def publish_experiment(exp_name: str):
 
 def collect_publish_files() -> list[Path]:
     root = Path(".") 
-    files = [ root / "experiment.yaml", root / "requirements.txt", root / ".heda/Dockerfile", ] 
+    files = [ get_exp_path(), get_requirement_file_path(), get_dockerfile_file_path()] 
     src_dir = root / "src"
     if src_dir.exists(): 
         files.extend(p for p in src_dir.rglob("*") if p.is_file()) 

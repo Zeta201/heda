@@ -28,6 +28,9 @@ def get_requirement_file_path() -> Path:
         raise FileNotFoundError("requirements.txt not found")
     return req_path
 
-def get_dockerfile_file_path(heda_dir: Path) -> Path:
+def get_dockerfile_file_path() -> Path:
+    root = Path(".")
+    heda_dir = root / ".heda"
+    heda_dir.mkdir(exist_ok=True)
     return heda_dir / "Dockerfile"
  

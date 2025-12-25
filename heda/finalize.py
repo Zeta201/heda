@@ -24,7 +24,7 @@ def finalize_experiment():
         entrypoint = data["procedure"]["entrypoint"]
         entrypoint_json = json.dumps(entrypoint.split())
         dockerfile_content = dockerfile_template.format(entrypoint=entrypoint_json)
-        dockerfile_path = get_dockerfile_file_path(heda_dir)
+        dockerfile_path = get_dockerfile_file_path()
         dockerfile_path.write_text(dockerfile_content)
 
     with step("Locking Dockerfile digest"):

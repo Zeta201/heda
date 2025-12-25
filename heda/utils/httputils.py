@@ -1,8 +1,7 @@
-# heda/utils/httputils.py
-
 import os
+from pathlib import Path
 import requests
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -47,5 +46,29 @@ def post_json(
 
     try:
         return response.json()
+    except ValueError as e:
+        raise RequestError(f"Invalid JSON response from {url}: {e}") from e
+
+
+def post_multipart(
+    endpoint: str,
+    files: List[Path],
+    form_data: Optional[Dict[str, Any]] = None,
+    timeout: int = 120
+) -> Dict[str, Any]:
+    """POST multipart/form-data with files and optional form fields."""
+    url = f"{BACKEND_URL.rstrip('/')}{endpoint}"
+    headers = {"x-auth-token": BACKEND_AUTH_TOKEN}
+
+    multipart_files: List[Tuple[str, Tuple[str, bytes, str]]] = [
+        ("files", (f.name, f.read_bytes(), "application/octet-stream")) for f in files
+    ]
+
+    try:
+        response = requests.post(url, headers=headers, files=multipart_files, data=form_data, timeout=timeout)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as e:
+        raise RequestError(f"Multipart request to {url} failed: {e}") from e
     except ValueError as e:
         raise RequestError(f"Invalid JSON response from {url}: {e}") from e
