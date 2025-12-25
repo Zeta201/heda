@@ -84,7 +84,7 @@ def finalize():
         typer.echo(f"Finalize failed: {e}", err=True)
         raise typer.Exit(1)
 
-    typer.echo("Experiment finalized (Dockerfile locked)")
+    console.print("[bold green]Experiment finalized (Dockerfile locked)[/bold green]")
     
 @app.command()
 def run():

@@ -1,19 +1,5 @@
 from pathlib import Path
-import subprocess
 import yaml
-
-GITOPS_ORG = "Zeta201"  # Your GitHub org/user
-GITOPS_TOKEN = "<YOUR_PERSONAL_ACCESS_TOKEN>"  # Or fetch from env securely
-GITOPS_BASE_URL = "https://api.github.com"
-
-class GitError(Exception):
-    pass
-
-def run_git_command(cmd: list[str], cwd: Path = Path(".")):
-    try:
-        subprocess.run(cmd, cwd=cwd, check=True)
-    except subprocess.CalledProcessError as e:
-        raise GitError(f"Git command failed: {' '.join(cmd)}") from e
 
 def get_experiment_name(experiment_file: Path = Path("experiment.yaml")) -> str:
     """
@@ -29,3 +15,19 @@ def get_experiment_name(experiment_file: Path = Path("experiment.yaml")) -> str:
         raise KeyError("'name' key not found in experiment.yaml")
 
     return data["name"]
+
+def get_exp_path() -> Path:
+    exp_path = Path(".") / "experiment.yaml"
+    if not exp_path.exists():
+        raise FileNotFoundError("experiment.yaml not found")
+    return exp_path
+
+def get_requirement_file_path() -> Path:
+    req_path = Path(".") / "requirements.txt"
+    if not req_path.exists():
+        raise FileNotFoundError("requirements.txt not found")
+    return req_path
+
+def get_dockerfile_file_path(heda_dir: Path) -> Path:
+    return heda_dir / "Dockerfile"
+ 
