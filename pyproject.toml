@@ -21,4 +21,5 @@ dependencies = [
 heda = "heda.cli:app"
 
 [tool.setuptools]
-packages = ["heda"]
+packages = { find = {} }
+
