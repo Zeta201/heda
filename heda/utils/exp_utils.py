@@ -1,7 +1,5 @@
 from pathlib import Path
 import subprocess
-
-import requests
 import yaml
 
 GITOPS_ORG = "Zeta201"  # Your GitHub org/user
