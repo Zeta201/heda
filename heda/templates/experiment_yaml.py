@@ -1,4 +1,4 @@
-experiment_yaml = """\
+experiment_yaml_template = """\
 name: {exp_name}
 procedure:
   entrypoint: python src/main.py

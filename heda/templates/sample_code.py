@@ -1,4 +1,4 @@
-sample_code = """\
+sample_code_template = """\
 import json
 from pathlib import Path
 
