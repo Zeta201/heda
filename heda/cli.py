@@ -5,36 +5,37 @@ import typer
 from pathlib import Path
 from heda.check import ClaimCheckError, check_claims
 from heda.publish import PublishError, checkout_version, list_versions, publish_experiment
+from heda.templates import experiment_yaml, sample_code
 from heda.validate import load_experiment_yaml, validate_experiment, ExperimentValidationError
 from heda.run import run_experiment, ExperimentRunError
 from heda.finalize import finalize_experiment, ExperimentFinalizeError
 from heda.verify import VerificationError, verify_experiment
+from heda.config import get_username
 
+from dotenv import load_dotenv
+load_dotenv()
+
+BACKEND_URL = os.environ.get("HEDA_BACKEND_URL")
+BACKEND_AUTH_TOKEN = os.environ.get("BACKEND_AUTH_TOKEN")
 
 app = typer.Typer(help="HEDA CLI")
 
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context):
-    """HEDA CLI root."""
+    """HEDA CLI."""
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
 
 @app.command()
-def hello():
-    """Sanity check command."""
-    typer.echo("HEDA CLI is working")
-
-@app.command()
-def init(name: str):
+def init(exp_name: str):
     """
     Initialize a new experiment directory
-    
-    :name str: Name of the experiment
     """
-    base_path = Path(name)
+    username = get_username()
+    base_path = Path(exp_name)
     
     if base_path.exists():
-        typer.echo(f"Error: directory '{name}' already exists.", err=True)
+        typer.echo(f"Error: directory '{exp_name}' already exists.", err=True)
         raise typer.Exit(code=1)
     
     # Create directory structure
@@ -45,35 +46,10 @@ def init(name: str):
     
     (base_path / "requirements.txt").write_text("# Add dependencies here\n")
 
-    # experiment.yaml
-    experiment_yaml = """\
-name: example_experiment
-procedure:
-  entrypoint: python src/main.py
-claims:
-  - metric: accuracy
-    operator: ">="
-    value: 0.8
-"""
-
-    # run.py
-    main_py = """\
-import json
-from pathlib import Path
-
-# Dummy experiment logic
-accuracy = 0.85
-
-outputs_dir = Path("outputs")
-outputs_dir.mkdir(exist_ok=True)
-
-with open(outputs_dir / "metrics.json", "w") as f:
-    json.dump({"accuracy": accuracy}, f)
-"""
-
     # Write files
+    experiment_yaml = experiment_yaml.format(exp_name=exp_name)
     (base_path / "experiment.yaml").write_text(experiment_yaml)
-    (base_path / "src" / "main.py").write_text(main_py)
+    (base_path / "src" / "main.py").write_text(sample_code)
     
      # Initialize local Git repo
     subprocess.run(["git", "init"], cwd=base_path, check=True)
@@ -85,20 +61,18 @@ with open(outputs_dir / "metrics.json", "w") as f:
     subprocess.run(["git", "branch", "-M", "main"], cwd=base_path, check=True)
 
     # Call backend to create remote GitOps repo with workflow
-    backend_url = "http://localhost:8000/init"
-    token = "abcd"
     response = requests.post(
-        backend_url,
-        headers={"x-auth-token": token},
-        json={"username": os.environ.get("USER", "anonymous"), "experiment_name": name}
+        f"{BACKEND_URL}/init" ,
+        headers={"x-auth-token": BACKEND_AUTH_TOKEN},
+        json={"username": username, "experiment_name": exp_name}
     )
     if response.status_code != 200:
-        typer.echo(f"Failed to create remote repo: {response.text}", err=True)
+        typer.echo(f"Failed to create gitops repo: {response.text}", err=True)
         raise typer.Exit(code=1)
 
     remote_url = response.json()["repo_url"]
     subprocess.run(["git", "remote", "add", "origin", remote_url], cwd=base_path, check=True)
-    typer.echo(f"Initialized experiment '{name}'")
+    typer.echo(f"Initialized experiment '{exp_name}'")
     
 @app.command()
 def validate():
@@ -166,17 +140,19 @@ def verify():
     typer.echo("Verification succeeded")
 
 @app.command("publish")
-def repro_publish(push: bool = typer.Option(False, help="Push to GitHub after publishing")):
+def publish():
     """
     Publish the current experiment:
     - Validate
     - Generate unique ID
     - Commit + tag in Git
     - Update registry
-    - Optionally push to GitHub
+    - Push to GitHub
     """
+    username = get_username()
+    
     try:
-        exp_id = publish_experiment(push=push)
+        exp_id = publish_experiment(username=username, exp_name="my_test_experiment")
         typer.secho(f"Experiment published successfully! ID: {exp_id}", fg=typer.colors.GREEN)
     except PublishError as e:
         typer.secho(f"[❌] Publish failed: {e}", fg=typer.colors.RED)
