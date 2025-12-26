@@ -49,7 +49,6 @@ def post_json(
     except ValueError as e:
         raise RequestError(f"Invalid JSON response from {url}: {e}") from e
 
-
 def post_multipart(
     endpoint: str,
     files: List[Path],
@@ -60,12 +59,28 @@ def post_multipart(
     url = f"{BACKEND_URL.rstrip('/')}{endpoint}"
     headers = {"x-auth-token": BACKEND_AUTH_TOKEN}
 
+    root = Path(".").resolve()
+
     multipart_files: List[Tuple[str, Tuple[str, bytes, str]]] = [
-        ("files", (f.name, f.read_bytes(), "application/octet-stream")) for f in files
+        (
+            "files",
+            (
+                str(f.resolve().relative_to(root)),  # 👈 KEY FIX
+                f.read_bytes(),
+                "application/octet-stream",
+            ),
+        )
+        for f in files
     ]
 
     try:
-        response = requests.post(url, headers=headers, files=multipart_files, data=form_data, timeout=timeout)
+        response = requests.post(
+            url,
+            headers=headers,
+            files=multipart_files,
+            data=form_data,
+            timeout=timeout,
+        )
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:

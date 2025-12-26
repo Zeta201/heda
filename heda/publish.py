@@ -68,7 +68,6 @@ def publish_experiment(exp_name: str):
     with step("Collecting experiment files"):
         files = collect_publish_files()
 
-
     with step("Creating pull request for publishing"):
         try:
             payload = post_multipart(
@@ -84,7 +83,7 @@ def publish_experiment(exp_name: str):
             raise PublishError(f"Publishing failed: {e}")
 
         experiment_id = payload["experiment_id"]
-        pr_url = payload.get("pull_request_url")
+        pr_url = payload["pr_url"]
 
 
     with step("Updating local registry"):
