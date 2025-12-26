@@ -31,34 +31,62 @@ console = Console()
 @app.command()
 def init(exp_name: str):
     """
-    Initialize a new experiment directory
+    Initialize a new experiment directory.
     """
     username = get_username()
     base_path = Path(exp_name)
 
+    # Pre-flight checks (no spinners)
     if base_path.exists():
-        console.print(f"[red]✗ directory '{exp_name}' already exists[/red]")
+        console.print(
+            f"[red]✗ Directory '{exp_name}' already exists[/red]"
+        )
         raise typer.Exit(code=1)
 
-    with step("Creating experiment directory structure"):
+    with step(
+        "Creating experiment directory structure",
+        success_message="Directory structure created",
+    ):
         create_directory_structure(base_path)
 
-    with step("Writing template files"):
+    with step(
+        "Writing template files",
+        success_message="Template files written",
+    ):
         create_template_files(base_path, exp_name)
 
-    with step("Initializing local Git repository"):
+    with step(
+        "Initializing local Git repository",
+        success_message="Local Git repository initialized",
+    ):
         git_init(base_path)
-        
-    with step("Creating remote GitOps repository"):
-        response = post_json("/init", {"username": username, "experiment_name": exp_name})
+
+    with step(
+        "Creating remote GitOps repository",
+        success_message="Remote GitOps repository created",
+    ):
+        response = post_json(
+            "/init",
+            {
+                "username": username,
+                "experiment_name": exp_name,
+            },
+        )
         remote_url = response["repo_url"]
 
-    with step("Linking remote repository"):
+    with step(
+        "Linking remote repository",
+        success_message="Remote repository linked",
+    ):
         git_remote_add(base_path, "origin", remote_url)
 
+    console.print()
     console.print(
-        f"\n[bold green] Experiment '{exp_name}' initialized successfully![/bold green]"
+        f"[bold green]✓ Experiment '{exp_name}' initialized successfully![/bold green]"
     )
+
+from pathlib import Path
+import typer
 
 @app.command()
 def validate():
@@ -68,24 +96,49 @@ def validate():
     experiment_path = Path("experiment.yaml")
 
     try:
-        data = load_experiment_yaml(experiment_path)
-        validate_experiment(data)
+        with step(
+            "Loading experiment.yaml",
+            success_message="experiment.yaml loaded",
+            failure_message="Failed to load experiment.yaml",
+        ):
+            data = load_experiment_yaml(experiment_path)
+
+        with step(
+            "Validating experiment.yaml schema",
+            success_message="Schema validation passed",
+            failure_message="Schema validation failed",
+        ):
+            validate_experiment(data)
+
     except ExperimentValidationError as e:
-        typer.echo(f"Validation failed: {e}", err=True)
+        # Step already shows ✗ — this is the final user-facing error
+        console.print(f"[red]Validation failed:[/] {e}")
         raise typer.Exit(code=1)
 
-    typer.echo("experiment.yaml is valid")
+    console.print("[bold green]✓ experiment.yaml is valid[/bold green]")
 
 @app.command()
 def finalize():
+    """
+    Finalize the experiment by validating inputs and locking the Dockerfile.
+    """
     try:
-        finalize_experiment()
-    except ExperimentFinalizeError as e:
-        typer.echo(f"Finalize failed: {e}", err=True)
-        raise typer.Exit(1)
+        with step(
+            "Finalizing experiment",
+            success_message="Experiment finalized",
+            failure_message="Experiment finalization failed",
+        ):
+            finalize_experiment()
 
-    console.print("[bold green]Experiment finalized (Dockerfile locked)[/bold green]")
-    
+    except ExperimentFinalizeError as e:
+        # Step already renders ✗ — print a concise final error
+        console.print(f"[red]Finalize failed:[/] {e}")
+        raise typer.Exit(code=1)
+
+    console.print(
+        "[bold green]✓ Experiment finalized (Dockerfile locked)[/bold green]"
+    )
+   
 @app.command()
 def run():
     """
@@ -94,10 +147,10 @@ def run():
     try:
         run_experiment()
     except ExperimentRunError as e:
-        typer.echo(f"Run failed: {e}", err=True)
+        console.print(f"[red]Run failed:[/] {e}")
         raise typer.Exit(code=1)
 
-    typer.echo("Experiment ran successfully")
+    console.print("[bold green]✓ Experiment completed successfully[/bold green]")
 
 @app.command()
 def check():
