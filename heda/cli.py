@@ -85,9 +85,6 @@ def init(exp_name: str):
         f"[bold green]✓ Experiment '{exp_name}' initialized successfully![/bold green]"
     )
 
-from pathlib import Path
-import typer
-
 @app.command()
 def validate():
     """
