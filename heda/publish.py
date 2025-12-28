@@ -107,6 +107,12 @@ def collect_publish_files() -> list[Path]:
     root = Path(".") 
     files = [ get_exp_path(), get_requirement_file_path(), get_dockerfile_file_path()] 
     src_dir = root / "src"
+    data_dir = root / "data"
+    
     if src_dir.exists(): 
         files.extend(p for p in src_dir.rglob("*") if p.is_file()) 
-        return files
+    if data_dir.exists():
+        files.extend(p for p in data_dir.rglob("*") if p.is_file()) 
+    
+    return files
+        
