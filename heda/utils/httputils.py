@@ -87,3 +87,43 @@ def post_multipart(
         raise RequestError(f"Multipart request to {url} failed: {e}") from e
     except ValueError as e:
         raise RequestError(f"Invalid JSON response from {url}: {e}") from e
+
+def get_json(
+    endpoint: str,
+    params: Optional[Dict[str, Any]] = None,
+    timeout: int = 10
+) -> Dict[str, Any]:
+    """
+    Send a GET request with query parameters to the backend and return JSON response.
+
+    Args:
+        endpoint: Backend endpoint, e.g., "/onboard/status"
+        params: Dictionary of query parameters
+        timeout: Request timeout in seconds
+
+    Returns:
+        Parsed JSON response
+
+    Raises:
+        RequestError: if the request fails or response is not 200
+    """
+    url = f"{BACKEND_URL.rstrip('/')}{endpoint}"
+    headers = {"x-auth-token": BACKEND_AUTH_TOKEN}
+
+    try:
+        response = requests.get(
+            url,
+            headers=headers,
+            params=params,
+            timeout=timeout,
+        )
+    except requests.RequestException as e:
+        raise RequestError(f"Request to {url} failed: {e}") from e
+
+    if response.status_code != 200:
+        raise RequestError(f"Request failed [{response.status_code}]: {response.text}")
+
+    try:
+        return response.json()
+    except ValueError as e:
+        raise RequestError(f"Invalid JSON response from {url}: {e}") from e

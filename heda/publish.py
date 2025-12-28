@@ -8,12 +8,13 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from dotenv import load_dotenv
 
+from heda.utils.auth import get_username
 from heda.utils.exp_utils import get_dockerfile_file_path, get_exp_path, get_requirement_file_path
 from heda.utils.httputils import RequestError, post_multipart
 load_dotenv()
 
 
-from heda.config import get_username
+# from heda.config import get_username
 from heda.validate import load_experiment_yaml, validate_experiment, ExperimentValidationError
 
 
@@ -58,7 +59,7 @@ def save_registry(registry: dict):
 
 
 def publish_experiment(exp_name: str):
-    username = get_username()
+    github_username = get_username()
 
     with step("Validating experiment.yaml"):
         experiment = load_experiment_yaml(Path("experiment.yaml"))
@@ -74,7 +75,7 @@ def publish_experiment(exp_name: str):
         endpoint="/publish",
         files=files,
         form_data={
-            "username": username,
+            "github_username": github_username,
             "experiment_name": exp_name
         },
         timeout=120

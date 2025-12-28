@@ -1,6 +1,7 @@
 import typer
 from pathlib import Path
 from heda.check import ClaimCheckError, check_claims
+from heda.utils.auth import get_username
 from heda.utils.exp_utils import get_experiment_name
 from heda.utils.git_utils import git_init, git_remote_add
 from heda.utils.httputils import post_json
@@ -10,7 +11,7 @@ from heda.validate import load_experiment_yaml, validate_experiment, ExperimentV
 from heda.run import run_experiment, ExperimentRunError
 from heda.finalize import finalize_experiment, ExperimentFinalizeError
 from heda.verify import VerificationError, verify_experiment
-from heda.config import get_username
+from heda.config import onboard_user
 from heda.ui.progress import step
 from rich.console import Console
 
@@ -33,7 +34,7 @@ def init(exp_name: str):
     """
     Initialize a new experiment directory.
     """
-    username = get_username()
+    github_username = get_username()
     base_path = Path(exp_name)
 
     # Pre-flight checks (no spinners)
@@ -68,7 +69,7 @@ def init(exp_name: str):
         response = post_json(
             "/init",
             {
-                "username": username,
+                "github_username": github_username,
                 "experiment_name": exp_name,
             },
         )
@@ -192,6 +193,13 @@ def publish():
     except PublishError as e:
         typer.secho(f"[❌] Publish failed: {e}", fg=typer.colors.RED)
 
+@app.command("config")
+def config():
+    """
+    One-time HEDA configuration and onboarding.
+    """
+    onboard_user()
+    
 # @app.command("list")
 # def repro_list():
 #     """
