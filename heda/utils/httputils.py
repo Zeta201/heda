@@ -100,7 +100,6 @@ def post_multipart(
         
     headers = {
         "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
     }
 
     root = Path(".").resolve()

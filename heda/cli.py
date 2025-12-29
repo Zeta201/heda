@@ -24,7 +24,7 @@ load_dotenv()
 AUTH0_DOMAIN = "dev-752bai1ktwy78hwp.us.auth0.com"
 CLIENT_ID = "zInOH0ENavRtYvhYVKOpkqSftmm782Vx"
 AUDIENCE = "https://heda.example.com/api"
-SCOPES = "openid profile email read:user"
+SCOPES = "openid profile email read:org"
 
 app = typer.Typer(help="HEDA CLI")
 
