@@ -1,23 +1,35 @@
+import json
 import os
 from pathlib import Path
 import requests
 from typing import Any, Dict, List, Optional, Tuple
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 BACKEND_URL = os.environ.get("HEDA_BACKEND_URL")
-BACKEND_AUTH_TOKEN = os.environ.get("BACKEND_AUTH_TOKEN")
 
 class RequestError(Exception):
     """Custom exception for request failures."""
     pass
 
+CONFIG_DIR = Path.home() / ".config" / "heda"
+CONFIG_FILE = CONFIG_DIR / "config.json"
 
+def load_config() -> dict:
+    if CONFIG_FILE.exists():
+        return json.loads(CONFIG_FILE.read_text())
+    return {}
+
+def save_config(config: dict):
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    CONFIG_FILE.write_text(json.dumps(config, indent=2))
+    
 def post_json(
     endpoint: str,
     payload: Dict[str, Any],
-    timeout: int = 10
+    timeout: int = 50
 ) -> Dict[str, Any]:
     """
     Send a POST request with JSON payload to the backend and return JSON response.
@@ -34,15 +46,35 @@ def post_json(
         RequestError: if the request fails or response is not 200
     """
     url = f"{BACKEND_URL.rstrip('/')}{endpoint}"
-    headers = {"x-auth-token": BACKEND_AUTH_TOKEN}
+    config = load_config()
+    token = config.get("access_token")
 
+    if not token:
+        raise RequestError(
+            "Not logged in. Run `heda login` first."
+        )
+        
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=timeout)
+        response = requests.post(url,
+            headers=headers,
+            json=payload,
+            timeout=timeout)
     except requests.RequestException as e:
         raise RequestError(f"Request to {url} failed: {e}") from e
 
+    if response.status_code == 401:
+        raise RequestError(
+            "Authentication failed. Please run `heda login` again."
+        )
+
     if response.status_code != 200:
-        raise RequestError(f"Request failed [{response.status_code}]: {response.text}")
+        raise RequestError(
+            f"Request failed [{response.status_code}]: {response.text}"
+        )
 
     try:
         return response.json()
@@ -57,7 +89,19 @@ def post_multipart(
 ) -> Dict[str, Any]:
     """POST multipart/form-data with files and optional form fields."""
     url = f"{BACKEND_URL.rstrip('/')}{endpoint}"
-    headers = {"x-auth-token": BACKEND_AUTH_TOKEN}
+    
+    config = load_config()
+    token = config.get("access_token")
+
+    if not token:
+        raise RequestError(
+            "Not logged in. Run `heda login` first."
+        )
+        
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
 
     root = Path(".").resolve()
 
@@ -65,7 +109,7 @@ def post_multipart(
         (
             "files",
             (
-                str(f.resolve().relative_to(root)),  # 👈 KEY FIX
+                str(f.resolve().relative_to(root)),
                 f.read_bytes(),
                 "application/octet-stream",
             ),
@@ -91,7 +135,7 @@ def post_multipart(
 def get_json(
     endpoint: str,
     params: Optional[Dict[str, Any]] = None,
-    timeout: int = 10
+    timeout: int = 50
 ) -> Dict[str, Any]:
     """
     Send a GET request with query parameters to the backend and return JSON response.
@@ -108,7 +152,18 @@ def get_json(
         RequestError: if the request fails or response is not 200
     """
     url = f"{BACKEND_URL.rstrip('/')}{endpoint}"
-    headers = {"x-auth-token": BACKEND_AUTH_TOKEN}
+    config = load_config()
+    token = config.get("access_token")
+
+    if not token:
+        raise RequestError(
+            "Not logged in. Run `heda login` first."
+        )
+        
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
 
     try:
         response = requests.get(

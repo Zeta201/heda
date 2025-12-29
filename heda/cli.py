@@ -1,7 +1,9 @@
+import shutil
+import time
+import requests
 import typer
 from pathlib import Path
 from heda.check import ClaimCheckError, check_claims
-from heda.utils.auth import get_username
 from heda.utils.exp_utils import get_experiment_name
 from heda.utils.git_utils import git_init, git_remote_add
 from heda.utils.httputils import post_json
@@ -11,12 +13,18 @@ from heda.validate import load_experiment_yaml, validate_experiment, ExperimentV
 from heda.run import run_experiment, ExperimentRunError
 from heda.finalize import finalize_experiment, ExperimentFinalizeError
 from heda.verify import VerificationError, verify_experiment
-from heda.config import onboard_user
+from heda.config import load_config, onboard_user, save_config
 from heda.ui.progress import step
 from rich.console import Console
 
 from dotenv import load_dotenv
 load_dotenv()
+
+# --- Auth0 Configuration ---
+AUTH0_DOMAIN = "dev-752bai1ktwy78hwp.us.auth0.com"
+CLIENT_ID = "zInOH0ENavRtYvhYVKOpkqSftmm782Vx"
+AUDIENCE = "https://heda.example.com/api"
+SCOPES = "openid profile email read:user"
 
 app = typer.Typer(help="HEDA CLI")
 
@@ -34,8 +42,8 @@ def init(exp_name: str):
     """
     Initialize a new experiment directory.
     """
-    github_username = get_username()
     base_path = Path(exp_name)
+    local_initialized = False
 
     # Pre-flight checks (no spinners)
     if base_path.exists():
@@ -43,43 +51,55 @@ def init(exp_name: str):
             f"[red]✗ Directory '{exp_name}' already exists[/red]"
         )
         raise typer.Exit(code=1)
+    try: 
+        with step(
+            "Creating experiment directory structure",
+            success_message="Directory structure created",
+        ):
+            create_directory_structure(base_path)
 
-    with step(
-        "Creating experiment directory structure",
-        success_message="Directory structure created",
-    ):
-        create_directory_structure(base_path)
+        with step(
+            "Writing template files",
+            success_message="Template files written",
+        ):
+            create_template_files(base_path, exp_name)
 
-    with step(
-        "Writing template files",
-        success_message="Template files written",
-    ):
-        create_template_files(base_path, exp_name)
+        with step(
+            "Initializing local Git repository",
+            success_message="Local Git repository initialized",
+        ):
+            git_init(base_path)
+            local_initialized = True
 
-    with step(
-        "Initializing local Git repository",
-        success_message="Local Git repository initialized",
-    ):
-        git_init(base_path)
+        with step(
+            "Creating remote GitOps repository",
+            success_message="Remote GitOps repository created",
+        ):
+            response = post_json(
+                "/init",
+                {
+                    "experiment_name": exp_name,
+                },
+            )
+            remote_url = response["repo_url"]
 
-    with step(
-        "Creating remote GitOps repository",
-        success_message="Remote GitOps repository created",
-    ):
-        response = post_json(
-            "/init",
-            {
-                "github_username": github_username,
-                "experiment_name": exp_name,
-            },
-        )
-        remote_url = response["repo_url"]
+        with step(
+            "Linking remote repository",
+            success_message="Remote repository linked",
+        ):
+            git_remote_add(base_path, "origin", remote_url)
+    except Exception as e:
+        console.print(f"[red]Initialization failed:[/red] {e}")
+        
+        console.print("[yellow]Cleaning up partial initialization...[/yellow]")
+        if local_initialized and base_path.exists():
+            try:
+                shutil.rmtree(base_path)
+                console.print(f"✓ Removed local directory '{exp_name}'")
+            except Exception as cleanup_err:
+                console.print(f"[red]Failed to remove directory '{exp_name}':[/red] {cleanup_err}")
 
-    with step(
-        "Linking remote repository",
-        success_message="Remote repository linked",
-    ):
-        git_remote_add(base_path, "origin", remote_url)
+        raise typer.Exit(code=1)
 
     console.print()
     console.print(
@@ -216,3 +236,47 @@ def config():
 #         checkout_version(version_id)
 #     except PublishError as e:
 #         typer.secho(f"[❌] Checkout failed: {e}", fg=typer.colors.RED)
+
+
+@app.command()
+def login():
+    """
+    Login via Auth0 GitHub OAuth (Device Flow)
+    """
+    console.print("[bold]HEDA Login via Auth0 GitHub OAuth[/bold]\n")
+
+    # Request device code
+    resp = requests.post(f"https://{AUTH0_DOMAIN}/oauth/device/code", data={
+        "client_id": CLIENT_ID,
+        "scope": SCOPES,
+        "audience": AUDIENCE
+    }).json()
+
+    console.print(f"Open [bold]{resp['verification_uri_complete']}[/bold] in your browser to authenticate")
+
+    # Poll token endpoint
+    while True:
+        time.sleep(resp["interval"])
+        token_resp = requests.post(f"https://{AUTH0_DOMAIN}/oauth/token", data={
+            "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+            "device_code": resp["device_code"],
+            "client_id": CLIENT_ID
+        }).json()
+
+        if "access_token" in token_resp:
+            config = load_config()
+            config.update({
+                "access_token": token_resp["access_token"],
+                "refresh_token": token_resp.get("refresh_token"),
+                "expires_in": token_resp.get("expires_in"),
+                "token_type": token_resp.get("token_type", "Bearer"),
+            })
+            save_config(config)
+
+            console.print("\n✅ Login successful!\n")
+            break
+
+        if token_resp.get("error") == "authorization_pending":
+            continue
+
+        raise RuntimeError(f"Auth failed: {token_resp}")

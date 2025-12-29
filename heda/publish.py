@@ -19,7 +19,6 @@ from heda.validate import load_experiment_yaml, validate_experiment, ExperimentV
 
 
 BACKEND_URL = os.environ.get("HEDA_BACKEND_URL")
-BACKEND_AUTH_TOKEN = os.environ.get("BACKEND_AUTH_TOKEN")
 
 console = Console()
 REGISTRY_FILE = Path(".heda/registry.json")
@@ -59,7 +58,6 @@ def save_registry(registry: dict):
 
 
 def publish_experiment(exp_name: str):
-    github_username = get_username()
 
     with step("Validating experiment.yaml"):
         experiment = load_experiment_yaml(Path("experiment.yaml"))
@@ -75,7 +73,6 @@ def publish_experiment(exp_name: str):
         endpoint="/publish",
         files=files,
         form_data={
-            "github_username": github_username,
             "experiment_name": exp_name
         },
         timeout=120
