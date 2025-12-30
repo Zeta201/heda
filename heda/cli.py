@@ -16,6 +16,7 @@ from heda.verify import VerificationError, verify_experiment
 from heda.config import load_config, onboard_user, save_config
 from heda.ui.progress import step
 from rich.console import Console
+import webbrowser 
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -237,7 +238,6 @@ def config():
 #     except PublishError as e:
 #         typer.secho(f"[❌] Checkout failed: {e}", fg=typer.colors.RED)
 
-
 @app.command()
 def login():
     """
@@ -246,37 +246,53 @@ def login():
     console.print("[bold]HEDA Login via Auth0 GitHub OAuth[/bold]\n")
 
     # Request device code
-    resp = requests.post(f"https://{AUTH0_DOMAIN}/oauth/device/code", data={
-        "client_id": CLIENT_ID,
-        "scope": SCOPES,
-        "audience": AUDIENCE
-    }).json()
+    resp = requests.post(
+        f"https://{AUTH0_DOMAIN}/oauth/device/code",
+        data={
+            "client_id": CLIENT_ID,
+            "scope": SCOPES,
+            "audience": AUDIENCE,
+        },
+    ).json()
 
-    console.print(f"Open [bold]{resp['verification_uri_complete']}[/bold] in your browser to authenticate")
+    verification_url = resp["verification_uri_complete"]
+
+    console.print(
+        f"Opening browser for authentication:\n[bold]{verification_url}[/bold]\n"
+    )
+
+    webbrowser.open(verification_url, new=2)
 
     # Poll token endpoint
     while True:
         time.sleep(resp["interval"])
-        token_resp = requests.post(f"https://{AUTH0_DOMAIN}/oauth/token", data={
-            "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
-            "device_code": resp["device_code"],
-            "client_id": CLIENT_ID
-        }).json()
+
+        token_resp = requests.post(
+            f"https://{AUTH0_DOMAIN}/oauth/token",
+            data={
+                "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+                "device_code": resp["device_code"],
+                "client_id": CLIENT_ID,
+            },
+        ).json()
 
         if "access_token" in token_resp:
             config = load_config()
-            config.update({
-                "access_token": token_resp["access_token"],
-                "refresh_token": token_resp.get("refresh_token"),
-                "expires_in": token_resp.get("expires_in"),
-                "token_type": token_resp.get("token_type", "Bearer"),
-            })
+            config.update(
+                {
+                    "access_token": token_resp["access_token"],
+                    "refresh_token": token_resp.get("refresh_token"),
+                    "expires_in": token_resp.get("expires_in"),
+                    "token_type": token_resp.get("token_type", "Bearer"),
+                }
+            )
             save_config(config)
 
-            console.print("\n✅ Login successful!\n")
+            console.print("\nLogin successful!\n")
             break
 
         if token_resp.get("error") == "authorization_pending":
             continue
 
         raise RuntimeError(f"Auth failed: {token_resp}")
+
