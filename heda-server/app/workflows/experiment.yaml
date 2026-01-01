@@ -1,0 +1,117 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: heda-run-
+spec:
+  serviceAccountName: heda-workflow-sa
+  entrypoint: experiment
+
+  arguments:
+    parameters:
+      - name: repo_url
+      - name: commit_sha
+      - name: image_tag
+
+  ttlStrategy:
+    secondsAfterFailure: 300
+    secondsAfterSuccess: 300
+
+  templates:
+
+    # --------------------------------------------------
+    # Main pipeline
+    # --------------------------------------------------
+    - name: experiment
+      steps:
+        - - name: clone
+            template: git-clone
+        - - name: check-finalized
+            template: check-finalized
+            arguments:
+              artifacts:
+                - name: repo
+                  from: "{{steps.clone.outputs.artifacts.repo}}"
+        - - name: build
+            template: build-image
+            arguments:
+              artifacts:
+                - name: repo
+                  from: "{{steps.clone.outputs.artifacts.repo}}"
+        - - name: run
+            template: run-experiment
+
+    # --------------------------------------------------
+    # Step 1: Clone repo
+    # --------------------------------------------------
+    - name: git-clone
+      container:
+        image: alpine/git
+        command: ["sh", "-c"]
+        args:
+          - |
+            set -e
+            git clone "{{workflow.parameters.repo_url}}" /work
+            cd /work
+            git checkout "{{workflow.parameters.commit_sha}}"
+      outputs:
+        artifacts:
+          - name: repo
+            path: /work
+
+    # --------------------------------------------------
+    # Step 2: Check finalized
+    # --------------------------------------------------
+    - name: check-finalized
+      inputs:
+        artifacts:
+          - name: repo
+            path: /work
+      container:
+        image: python:3.11
+        command: ["sh", "-c"]
+        args:
+          - |
+            set -e
+            echo "Checking experiment state…"
+            ls -la /work
+            if [ ! -f /work/.heda/Dockerfile ]; then
+              echo "❌ Experiment not finalized. Run 'heda finalize' first."
+              exit 1
+            fi
+            echo "✅ Experiment finalized"
+
+    # --------------------------------------------------
+    # Step 3: Build image with Kaniko
+    # --------------------------------------------------
+    - name: build-image
+      inputs:
+        artifacts:
+          - name: repo
+            path: /work
+      container:
+        image: gcr.io/kaniko-project/executor:latest
+        args:
+          - "--dockerfile=/work/.heda/Dockerfile"
+          - "--context=/work"
+          - "--destination={{workflow.parameters.image_tag}}"
+          - "--skip-tls-verify=false"
+        volumeMounts:
+          - name: kaniko-secret
+            mountPath: /kaniko/.docker
+      volumes:
+        - name: kaniko-secret
+          secret:
+            secretName: dockerhub-secret
+    # --------------------------------------------------
+    # Step 4: Run experiment
+    # --------------------------------------------------
+    - name: run-experiment
+      container:
+        image: "{{workflow.parameters.image_tag}}"
+        imagePullPolicy: Always
+        command: ["sh", "-c"]
+        args:
+          - |
+            echo "🚀 Running experiment"
+      imagePullSecrets:
+        - name: dockerhub-secret

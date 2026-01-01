@@ -4,3 +4,7 @@ heda.egg-info/
 .vscode/
 .env
 samples
+k8s/
+samples.txt
+test.html
+minio_secrets.txt

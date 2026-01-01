@@ -1,0 +1,9 @@
+fastapi>=0.110
+pydantic>=2.0
+python-dotenv>=1.0
+PyGithub>=2.3
+uvicorn[standard]>=0.29
+psycopg2-binary
+kubernetes>=26.0.0
+PyYAML>=6.0
+httpx>=0.27
