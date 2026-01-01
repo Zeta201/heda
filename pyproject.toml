@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "heda"
+version = "0.1.0"
+description = "Executable scientific reproducibility engine"
+requires-python = ">=3.11"
+dependencies = [
+    "typer>=0.12",
+    "pyyaml>=6.0",
+    "jsonschema>=4.21",
+     "tabulate>=0.9",
+     "requests>=2.31",
+     "rich>=13.7",
+    "python-dotenv>=1.0.0"
+]
+
+[project.scripts]
+heda = "heda.cli:app"
+
+[tool.setuptools]
+packages = { find = {} }
+
